@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.util.Date;
 
 @RunWith(JUnit4.class)
-public class BertTest {
+public class BertDecodeTest {
 
 	@Test(expected = BertException.class)
     public void testInvalid() throws BertException {
