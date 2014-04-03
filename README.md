@@ -1,7 +1,23 @@
 Bert for Java - Java Library for Binary Erlang Term
 =============
 
-It is still on the way to develop. API is not stable yet.
+Decoding is Supported, It has been tested using data against with Erlang R16B03-1.
+
+- Small Integer (97)
+- Integer       (98)
+- Floating      (99)
+- Atom          (100)
+- Small Tuple   (104)
+- Large Tuple   (105)
+- Nil           (106)
+- String        (107)
+- List          (108)
+- Binary        (109)
+- Bert Time     ( Will be Converted to Millisecond Rather MicroSecond )
+- Bert True
+- Bert False
+- Bert Nil
+- Bert Dict     ( Tested Against with R16B03-1, erlange term { age, 30 } in dict will be convert to { age, [ 30 ] }. It is done by Erlang itself )
 
 Target
 ----
