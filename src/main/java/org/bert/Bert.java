@@ -1,311 +1,188 @@
 package org.bert;
 
-import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class Bert {
 
-	public enum Type {
-		INT,
-		FLOAT,
-		ATOM,
-		TUPLE,
-		NIL,
-		STRING,
-		LIST,
-		IMPROPER_LIST,
-		BINARY
-	};
+	private byte[] mFloatStr = new byte[31];
+	private ByteBuffer mBuffer = null;
+	private Object mValue = null;
 
-	private class Atom {
-		public String value;
+	public static class Atom {
+		public String name;
+
+		public Atom() {
+		}
+
+		public int hashCode() {
+			return name.hashCode();
+		}
+
+		public boolean equals(Object obj) {
+			if (!(obj instanceof Atom)) return false;
+			return name.compareTo(((Atom) obj).name) == 0;
+		}
 
 		public String toString() {
-			return value;
+			return name;
 		}
 	}
 
-	private class Tuple {
-		public Bert mValue;
-
-		public String toString() {
-			return mValue.toString();
-		}
+	public static class Tuple extends ArrayList<Object> {
 	}
 
-	private class ImproperList_ {
-		public Bert mValue;
-
-		public String toString() {
-			return mValue.toString();
-		}
+	public static class List extends ArrayList<Object> {
+		public boolean isProper = true;
 	}
 
-	private class List_ {
-		public Bert mValue;
-
-		public String toString() {
-			return mValue.toString();
-		}
+	public static class Dict extends HashMap<Object, Object> {
 	}
-
-	private ArrayList<Object> mValue = null;
-
-	private int itemConut = 0;
 
 	public Bert() {
 	}
 
 	public Bert(final byte[] data) throws BertException {
-		if ((data[0] & 0x00FF) == 131) {
-			mValue = new ArrayList<Object>();
-			decode(data, 1, mValue);
-		} else {
-			throw new BertException("Invalid Bert Data");
-		}
+		mBuffer = ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN);
+
+		byte value = mBuffer.get();
+		if (value != -125)
+		 	throw new BertException("Invalid Bert Data");
+
+		mValue = decode();
 	}
 
-	private int decodeSmallTuple(final byte[] data, int offset, ArrayList<Object> arr) throws BertException {
-		int i = 0;
-		int size = data[offset] & 0x00FF;
-		int off  = offset + 1;
+	private Object decodeBertTerm(Tuple t) throws BertException {
+		if (t.get(0) instanceof Atom && ((Atom) t.get(0)).name.compareTo("bert") ==  0) {
+			if (t.size() == 5) {
+				if (t.get(0) instanceof Atom && t.get(1) instanceof Atom &&
+					((Atom) t.get(0)).name.compareTo("bert") == 0 &&
+					((Atom) t.get(1)).name.compareTo("time") == 0 &&
+					t.get(2) instanceof Integer &&
+					t.get(3) instanceof Integer &&
+					t.get(4) instanceof Integer) {
+					long time = ((int) t.get(2) * (long) 1000000 * (long) 1000) + ((int) t.get(3) * (long) 1000) + ((int) t.get(4) / 1000);
 
-		Tuple t = new Tuple();
-		t.mValue = new Bert();
-		t.mValue.mValue = new ArrayList<Object>();
+					return time;
+				}
+			} else if (t.size() == 2) {
+				String v = ((Atom) t.get(1)).name;
+				if (v.compareTo("nil") == 0) {
+					return null;
+				} else if (v.compareTo("true") == 0) {
+					return true;
+				} else if (v.compareTo("false") == 0) {
+					return false;
+				}
+			} else if (t.size() == 3) {
+				if (t.get(0) instanceof Atom && t.get(1) instanceof Atom &&
+					((Atom) t.get(0)).name.compareTo("bert") == 0 &&
+					((Atom) t.get(1)).name.compareTo("dict") == 0 &&
+					t.get(2) instanceof List) {
+					Dict d = new Dict();
+					List l = (List) t.get(2);
 
-		for (i = 0; i < size; i++) {
-			off = decodeOnce(data, off, t.mValue.mValue);
-		}
+					for (int count = 0; count < l.size(); count++) {
+						Tuple tup = (Tuple) l.get(count);
+						if (tup.size() != 2)
+							throw new BertException("Invalid Dict Entry");
+						d.put(tup.get(0), tup.get(1));
+					}
 
-		arr.add(t);
-
-		return off;
-	}
-
-	private int decodeBinary(final byte[] data, int offset, ArrayList<Object> arr) {
-		int i = 0;
-		int off  = offset;
-		int size = ((data[off] & 0x00FF) << 24) +
-			((data[off + 1] & 0x00FF) << 16) +
-			((data[off + 2] & 0x00FF) << 8) +
-			(data[off + 3] & 0x00FF);
-		off = offset + 4;
-
-		byte[] d = new byte[size];
-		System.arraycopy(data, offset + 4, d, 0, size);
-		arr.add(d);
-
-		off = off + size;
-
-		return off;
-	}
-
-	private int decodeLargeTuple(final byte[] data, int offset, ArrayList<Object> arr) throws BertException {
-		int i = 0;
-		int off  = offset;
-		int size = ((data[off] & 0x00FF) << 24) +
-			((data[off + 1] & 0x00FF) << 16) +
-			((data[off + 2] & 0x00FF) << 8) +
-			(data[off + 3] & 0x00FF);
-		off = offset + 4;
-
-		Tuple t = new Tuple();
-		t.mValue = new Bert();
-		t.mValue.mValue = new ArrayList<Object>();
-
-		for (i = 0; i < size; i++) {
-			off = decodeOnce(data, off, t.mValue.mValue);
+					return d;
+				}
+			}
 		}
 
-		arr.add(t);
-
-		return off;
+		return t;
 	}
 
-	private int decodeList(final byte[] data, int offset, ArrayList<Object> arr) throws BertException {
-		int i = 0;
-		int off  = offset;
-		int size = ((data[off] & 0x00FF) << 24) +
-			((data[off + 1] & 0x00FF) << 16) +
-			((data[off + 2] & 0x00FF) << 8) +
-			(data[off + 3] & 0x00FF);
-		off = offset + 4;
+	private Object decodeSmallTuple() throws BertException {
+		int len = mBuffer.get() & 0x00FFFFFFFF;
 
-		ArrayList<Object> temp = new ArrayList<Object>();
-
-		for (i = 0; i < size + 1; i++) {
-			off = decodeOnce(data, off, temp);
+		Tuple tuple = new Tuple();
+		for (int count = 0; count < len; count++) {
+			tuple.add(decode());
 		}
 
-		if (temp.get(size) == null) {
-			temp.remove(size);
-			List_ t = new List_();
-			t.mValue = new Bert();
-			t.mValue.mValue = temp;
-			arr.add(t);
-		} else {
-			ImproperList_ t = new ImproperList_();
-			t.mValue = new Bert();
-			t.mValue.mValue = temp;
-			arr.add(t);
+		return decodeBertTerm(tuple);
+	}
+
+	private Object decodeLargeTuple() throws BertException {
+		int len = mBuffer.getInt() & 0x00FF;
+
+		Tuple tuple = new Tuple();
+		for (int count = 0; count < len; count++) {
+			tuple.add(decode());
 		}
 
-
-		return off;
+		return decodeBertTerm(tuple);
 	}
 
-	private int decodeString(final byte[] data,  int offset, ArrayList<Object> arr) {
-		int size = ((data[offset] & 0x00FF) << 8) + (data[offset + 1] & 0x00FF);
-		String s = new String(data, offset + 2, size);
+	public List decodeList() throws BertException {
+		int len = mBuffer.getInt() & 0x00FF;
 
-		arr.add(s);
+		List list = new List();
+		for (int count = 0; count < len; count++) {
+			list.add(decode());
+		}
 
-		return offset + size + 2;
+		Object o = decode();
+		if (!(o instanceof List)) {
+			list.add(o);
+			list.isProper = false;
+		}
+
+		return list;
 	}
 
-	private int decodeAtom(final byte[] data,  int offset, ArrayList<Object> arr) {
-		int size = ((data[offset] & 0x00FF) << 8) + (data[offset + 1] & 0x00FF);
-		String s = new String(data, offset + 2, size);
+	private Object decode() throws BertException {
+		int tag = mBuffer.get() & 0x00FF;
+		byte[] val = null;
+		long len = 0;
 
-		Atom at = new Atom();
-		at.value = s;
-		arr.add(at);
-
-		return offset + size + 2;
-	}
-
-	private int decodeOnce(final byte[] data, int offset, ArrayList<Object> arr) throws BertException {
-		int off = offset;
-		int i = 0;
-		int size = 0;
-		String s = null;
-		ByteBuffer b = null;
-
-		switch (data[off] & 0x00FF) {
+		switch (tag) {
 		case 97:  // SmallInt Tag
-			arr.add((data[off + 1] & 0x00FF));
-			off += 2;
-			break;
+			return (int) (mBuffer.get() & 0x00FF);
 		case 98:  // Int Tag
-			size = ((data[off + 1] & 0x00FF) << 24) +
-				((data[off + 2] & 0x00FF) << 16) +
-				((data[off + 3] & 0x00FF) << 8) +
-				(data[off + 4] & 0x00FF);
-			b = ByteBuffer.wrap(data, off + 1, 4);
-			arr.add(b.getInt());
-			off += 5;
-			break;
-		case 110: // SmallBignumTag
-			// Log.i("Websocket", "Bert Small Big Num");
-			break;
-		case 111: // LargeBignumTag
-			// Log.i("Websocket", "Bert Large Big Num");
-			break;
+			return mBuffer.getInt();
 		case 99:  // FloatTag
-			s = new String(data, off + 1, 31);
-			arr.add(Float.parseFloat(s));
-			off += 32; 
-			break;
+			mBuffer.get(mFloatStr);
+			return Double.parseDouble(new String(mFloatStr));
 		case 100: // AtomTag
-			off = decodeAtom(data, off + 1, arr);
-			break;
+			len = mBuffer.getShort() & 0x00FFFF;
+			val = new byte[(int) len];
+			mBuffer.get(val);
+			Atom atom = new Atom();
+			atom.name = new String(val);
+			return atom;
 		case 104: // SmallTupleTag
-			off = decodeSmallTuple(data, off + 1, arr);
-			break;
+			return decodeSmallTuple();
 		case 105: // LargeTupleTag
-			off = decodeLargeTuple(data, off + 1, arr);
-			break;
+			return decodeLargeTuple();
 		case 106: // NilTag
-			arr.add(null);
-			off++;
-			break;
+			return new List();
 		case 107: // StringTag
-			off = decodeString(data, off + 1, arr);
-			break;
+			len = mBuffer.getShort() & 0x00FFFF;
+			val = new byte[(int) len];
+			mBuffer.get(val);
+			return new String(val);
 		case 108: // ListTag
-			off = decodeList(data, off + 1, arr);
-			break;
+			return decodeList();
 		case 109: // BinTag
-			off = decodeBinary(data, off + 1, arr);
-			break;
+			len = mBuffer.getInt() & 0x00FFFFFFFF;
+			val = new byte[(int) len];
+			mBuffer.get(val);
+			return val;
 		default:
-			throw new BertException("Invalid Bert Data");
+			throw new BertException("Not Supported Bert Tag");
 		}
-
-		return off;
 	}
 
-	private int decode(final byte[] data, int offset, ArrayList<Object> arr) throws BertException {
-		int off = offset;
-
-		for (off = offset; off < data.length;) {
-			off = decodeOnce(data, off, arr);
-		}
-
-		return off;
-	}
-
-	public void addInteger(int value) {
-	}
-
-	public void addFloat(float value) {
-	}
-
-	public void addAtom(String value) {
-	}
-
-	public void addNil() {
-	}
-
-	public void addString(String value) {
-	}
-
-	public void addTuple(List<Bert> bert)  {
-	}
-
-	public void addList(List<Bert> bert)  {
-	}
-
-	public int getItemCount() {
-		return mValue == null ? 0 : mValue.size();
-	}
-
-	public Type getItemType(int count) {
-		return Type.NIL;
-	}
-
-	public int getInt(int count) {
-		return 0;
-	}
-
-	public float getFloat(int count) {
-		return 0;
-	}
-
-	public String getAtom(int count) {
-		return null;
-	}
-
-	public boolean isNil(int count) {
-		return false;
-	}
-
-	public String getString(int count) {
-		return null;
-	}
-
-	public byte[] getBinary(int count) {
-		return null;
-	}
-
-	public Bert getTuples(int count) {
-		return null;
-	}
-
-	public Bert getList(int count) {
-		return null;
+	public Object getValue() {
+		return mValue;
 	}
 
 	public String toString() {
