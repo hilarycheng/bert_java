@@ -1,7 +1,7 @@
 Bert for Java - Java Library for Binary Erlang Term
 =============
 
-Decoding is Supported, It has been tested using data against with Erlang R16B03-1.
+Encoding / Decoding is Supported, It has been tested using data against with Erlang R16B03-1.
 
 - Small Integer (97)
 - Integer       (98)
