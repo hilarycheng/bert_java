@@ -99,4 +99,61 @@ public class BertEncodeTest {
 		assert(Arrays.equals(data, output));
 	}
 
+	@Test
+	public void encodeTuple() throws BertException {
+		Bert bert = new Bert();
+		Bert.Tuple tuple = new Bert.Tuple();
+		tuple.add(new Atom("demo"));
+		byte[] five = { 5 };
+		tuple.add(five);
+		tuple.add("a");
+		tuple.add(1);
+		byte[] data = bert.encode(tuple);
+		
+		byte[] output = { (byte) 131, 104, 4, 100, 0, 4, 100, 101, 109, 111, 109, 0, 0, 0, 1, 5, 107, 0, 1, 97, 97, 1 };
+		assert(Arrays.equals(data, output));
+	}
+
+	@Test
+	public void encodeList() throws BertException {
+		Bert bert = new Bert();
+		Bert.List list = new Bert.List();
+		list.add(new Atom("test"));
+		list.add(1);
+		list.add("a");
+		byte[] five = { 5 };
+		list.add(five);
+
+		byte[] data = bert.encode(list);
+		
+		byte[] output = { (byte) 131, 108, 0, 0, 0, 4, 100, 0, 4, 116, 101, 115, 116, 97, 1, 107, 0, 1, 97, 109, 0, 0, 0, 1, 5, 106 };
+		assert(Arrays.equals(data, output));
+	}
+
+	@Test
+	public void encodeComplex() throws BertException, java.io.UnsupportedEncodingException {
+		Bert bert = new Bert();
+		Bert.List list = new Bert.List();
+
+		list.isProper = true;
+		Bert.Tuple user = new Bert.Tuple();
+		user.add(new Atom("user"));
+		user.add("demo".getBytes("UTF-8"));
+
+		Bert.Tuple pass= new Bert.Tuple();
+		pass.add(new Atom("pass"));
+		pass.add("12346".getBytes("UTF-8"));
+
+		list.add(user);
+		list.add(pass);
+
+		byte[] data = bert.encode(list);
+		byte[] output = { (byte) 131, 108, 0, 0, 0, 2, 104, 2, 100, 0, 4, 117, 115, 101,
+						  114, 109, 0, 0, 0, 4, 100, 101, 109, 111, 104, 2, 100, 0, 4, 
+						  112, 97, 115, 115, 109, 0, 0, 0, 5, 49, 50, 51, 52, 54, 106 };
+		assertEquals(data.length, output.length);
+
+		assert(Arrays.equals(data, output));
+	}
+
 }

@@ -64,7 +64,7 @@ public class Bert {
 		}
 	}
 
-	private void writeTuple(Tuple tuple, ByteArrayOutputStream bao) throws BertException {
+	private void writeTuple(Tuple tuple) throws BertException {
 		int len = tuple.size();
 
 		if (len < 256) {
@@ -83,6 +83,22 @@ public class Bert {
 		}
 	}
 
+	private void writeList(List list) throws BertException {
+		int len = list.size();
+
+		bao.write(108);
+		bao.write((byte) ((len >> 24) & 0x00FF));
+		bao.write((byte) ((len >> 16) & 0x00FF));
+		bao.write((byte) ((len >>  8) & 0x00FF));
+		bao.write((byte) ((len      ) & 0x00FF));
+
+		for (int count = 0; count < list.size(); count++) {
+			encodeTerm(list.get(count));
+		}
+
+		if (list.isProper) bao.write(106);
+	}
+
 	private void encodeTerm(Object o) throws BertException {
 
 		if (o == null) {
@@ -91,14 +107,14 @@ public class Bert {
 			Tuple tup = new Tuple();
 			tup.add(bert);
 			tup.add(nil);
-			writeTuple(tup, bao);
+			writeTuple(tup);
 		} else if (o instanceof Boolean) {
 			Atom bert = new Atom("bert");
 			Atom nil = new Atom((boolean) o ? "true" : "false");
 			Tuple tup = new Tuple();
 			tup.add(bert);
 			tup.add(nil);
-			writeTuple(tup, bao);
+			writeTuple(tup);
 		} else if (o instanceof Integer) {
 			int value = (int) o;
 			if (value >= 0 && value <= 255) {
@@ -127,6 +143,8 @@ public class Bert {
 			List list = (List) o;
 			if (list.size() == 0) {
 				bao.write(106);
+			} else {
+				writeList((List) o);
 			}
 		} else if (o instanceof String) {
 			try {
@@ -154,6 +172,8 @@ public class Bert {
 			} catch (IOException ex) {
 				new BertException(ex.getMessage());
 			}
+		} else if (o instanceof Tuple) {
+			writeTuple((Tuple) o);
 		}
 
 	}
