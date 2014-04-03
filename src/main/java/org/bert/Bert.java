@@ -36,6 +36,26 @@ public class Bert {
 		}
 	}
 
+	public static class Time {
+
+		public Time() {
+		}
+
+		public Time(long ts) {
+			timestamp = ts;
+
+			microsecond = (int) ((ts % 1000) * 1000);
+			second = (int) ((ts / 1000) % 1000000);
+			megasecond = (int) ((ts / 1000) / 1000000);
+		}
+
+		public long timestamp = 0;
+
+		public int megasecond  = 0;
+		public int second      = 0;
+		public int microsecond = 0;
+	}
+
 	public static class Tuple extends ArrayList<Object> {
 	}
 
@@ -172,6 +192,17 @@ public class Bert {
 			} catch (IOException ex) {
 				new BertException(ex.getMessage());
 			}
+		} else if (o instanceof Time) {
+			Time time = (Time) o;
+
+			Tuple tuple = new Tuple();
+			tuple.add(new Atom("bert"));
+			tuple.add(new Atom("time"));
+			tuple.add(time.megasecond);
+			tuple.add(time.second);
+			tuple.add(time.microsecond);
+
+			writeTuple(tuple);
 		} else if (o instanceof Tuple) {
 			writeTuple((Tuple) o);
 		}
@@ -207,7 +238,13 @@ public class Bert {
 					t.get(2) instanceof Integer &&
 					t.get(3) instanceof Integer &&
 					t.get(4) instanceof Integer) {
-					long time = ((int) t.get(2) * (long) 1000000 * (long) 1000) + ((int) t.get(3) * (long) 1000) + ((int) t.get(4) / 1000);
+
+					Time time = new Time();
+
+					time.timestamp = ((int) t.get(2) * (long) 1000000 * (long) 1000) + ((int) t.get(3) * (long) 1000) + ((int) t.get(4) / 1000);
+					time.megasecond  = (int) t.get(2);
+					time.second      = (int) t.get(3);
+					time.microsecond = (int) t.get(4);
 
 					return time;
 				}

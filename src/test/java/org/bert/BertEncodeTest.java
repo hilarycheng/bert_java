@@ -135,7 +135,6 @@ public class BertEncodeTest {
 		Bert bert = new Bert();
 		Bert.List list = new Bert.List();
 
-		list.isProper = true;
 		Bert.Tuple user = new Bert.Tuple();
 		user.add(new Atom("user"));
 		user.add("demo".getBytes("UTF-8"));
@@ -153,6 +152,24 @@ public class BertEncodeTest {
 						  112, 97, 115, 115, 109, 0, 0, 0, 5, 49, 50, 51, 52, 54, 106 };
 		assertEquals(data.length, output.length);
 
+		assert(Arrays.equals(data, output));
+	}
+
+	@Test
+	public void encodeBertTime() throws BertException {
+		Bert bert = new Bert();
+
+		Bert.Time time = new Bert.Time(1396519216811L);
+
+		assertEquals(time.megasecond, 1396);
+		assertEquals(time.second, 519216);
+		assertEquals(time.microsecond, 811000);
+
+		byte[] output = { (byte) 131, 104, 5, 100, 0, 4, 98, 101, 114, 116, 100,
+						  0, 4, 116, 105, 109, 101, 98, 0, 0, 5, 116, 98, 0, 7,
+						  (byte) 236, 48, 98, 0, 12, 95, (byte) 248 };
+
+		byte[] data = bert.encode(time);
 		assert(Arrays.equals(data, output));
 	}
 

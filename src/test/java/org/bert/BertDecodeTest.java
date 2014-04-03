@@ -157,15 +157,18 @@ public class BertDecodeTest {
 		Bert bert = new Bert(data);
 		Object o = bert.getValue();
 
-		assert(o instanceof Long);
+		assert(o instanceof Bert.Time);
 
-		long time = (long) 1396507272;
-		time = time * 1000;
-		time = time + 939;
+		Bert.Time btime = (Bert.Time) o;
+	
+		long time = 1396507272939L;
 
-		assertEquals((long) o, time);
+		assertEquals(btime.timestamp, time);
+		assertEquals(btime.megasecond, 1396);
+		assertEquals(btime.second, 507272);
+		assertEquals(btime.microsecond, 939193);
 
-		Date date = new Date((long) o);
+		Date date = new Date(btime.timestamp);
 	
 		assertEquals(date.getYear(), 114);
 		assertEquals(date.getMonth(), 3);
