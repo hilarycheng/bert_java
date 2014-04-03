@@ -4,17 +4,22 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 
 public class Bert {
 
 	private byte[] mFloatStr = new byte[31];
 	private ByteBuffer mBuffer = null;
+	private ByteArrayOutputStream bao = null;
 	private Object mValue = null;
 
 	public static class Atom {
 		public String name;
 
-		public Atom() {
+		public Atom(String name) {
+			this.name = name;
 		}
 
 		public int hashCode() {
@@ -43,6 +48,125 @@ public class Bert {
 
 	public Bert() {
 	}
+
+	private void writeAtom(Atom a, ByteArrayOutputStream bao) throws BertException {
+		int len = a.name.length();
+		if (len >= 65536) throw new BertException("Atom Name too Long");
+		bao.write(100);
+		bao.write((byte) (len >> 8) & 0x00FF);
+		bao.write((byte) (len     ) & 0x00FF);
+		try {
+			bao.write(a.name.getBytes("ISO-8859-1"));
+		} catch (UnsupportedEncodingException ex) {
+			throw new BertException("ISO 8859-1 is not Supported at Your Java Environment");
+		} catch (IOException ex) {
+			throw new BertException(ex.getMessage());
+		}
+	}
+
+	private void writeTuple(Tuple tuple, ByteArrayOutputStream bao) throws BertException {
+		int len = tuple.size();
+
+		if (len < 256) {
+			bao.write(104);
+			bao.write((byte) (len & 0x00FF));
+		} else {
+			bao.write(105);
+			bao.write((byte) ((len >> 24) & 0x00FF));
+			bao.write((byte) ((len >> 16) & 0x00FF));
+			bao.write((byte) ((len >>  8) & 0x00FF));
+			bao.write((byte) ((len      ) & 0x00FF));
+		}
+
+		for (int count = 0; count < tuple.size(); count++) {
+			encodeTerm(tuple.get(count));
+		}
+	}
+
+	private void encodeTerm(Object o) throws BertException {
+
+		if (o == null) {
+			Atom bert = new Atom("bert");
+			Atom nil = new Atom("nil");
+			Tuple tup = new Tuple();
+			tup.add(bert);
+			tup.add(nil);
+			writeTuple(tup, bao);
+		} else if (o instanceof Boolean) {
+			Atom bert = new Atom("bert");
+			Atom nil = new Atom((boolean) o ? "true" : "false");
+			Tuple tup = new Tuple();
+			tup.add(bert);
+			tup.add(nil);
+			writeTuple(tup, bao);
+		} else if (o instanceof Integer) {
+			int value = (int) o;
+			if (value >= 0 && value <= 255) {
+				bao.write(97);
+				bao.write((byte) (value & 0x00FF));
+			} else {
+				bao.write(98);
+				bao.write((byte) ((value >> 24) & 0x00FF));
+				bao.write((byte) ((value >> 16) & 0x00FF));
+				bao.write((byte) ((value >>  8) & 0x00FF));
+				bao.write((byte) ((value      ) & 0x00FF));
+			}
+		} else if (o instanceof Double || o instanceof Float) {
+			double d = (double) o;
+			byte[] val = String.format("%.20e", o).getBytes();
+			try {
+				bao.write(99);
+				bao.write(val);
+				if (val.length < 31) {
+					for (int count = 0; count < 31 - val.length; count++) bao.write(0);
+				}
+			} catch (IOException ex) {
+				throw new BertException(ex.getMessage());
+			}
+		} else if (o instanceof List) {
+			List list = (List) o;
+			if (list.size() == 0) {
+				bao.write(106);
+			}
+		} else if (o instanceof String) {
+			try {
+				byte[] str = ((String) o).getBytes("UTF-8");
+				bao.write(107);
+				bao.write((byte) ((str.length >> 8) & 0x00FF));
+				bao.write((byte) ((str.length     ) & 0x00FF));
+				bao.write(str);
+			} catch (UnsupportedEncodingException ex) {
+				new BertException("String not in UTF-8");
+			} catch (IOException ex) {
+				new BertException(ex.getMessage());
+			}
+		} else if (o instanceof Atom) {
+			writeAtom((Atom) o, bao);
+		} else if (o instanceof byte[]) {
+			int value = ((byte[]) o).length;
+			bao.write(109);
+			bao.write((byte) ((value >> 24) & 0x00FF));
+			bao.write((byte) ((value >> 16) & 0x00FF));
+			bao.write((byte) ((value >>  8) & 0x00FF));
+			bao.write((byte) ((value      ) & 0x00FF));
+			try {
+				bao.write((byte[]) o);
+			} catch (IOException ex) {
+				new BertException(ex.getMessage());
+			}
+		}
+
+	}
+
+	public byte[] encode(Object o) throws BertException {
+		bao = new ByteArrayOutputStream();
+		bao.write(-125);
+
+		encodeTerm(o);
+
+		return bao.toByteArray();
+	}
+
 
 	public Bert(final byte[] data) throws BertException {
 		mBuffer = ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN);
@@ -155,8 +279,7 @@ public class Bert {
 			len = mBuffer.getShort() & 0x00FFFF;
 			val = new byte[(int) len];
 			mBuffer.get(val);
-			Atom atom = new Atom();
-			atom.name = new String(val);
+			Atom atom = new Atom(new String(val));
 			return atom;
 		case 104: // SmallTupleTag
 			return decodeSmallTuple();
@@ -168,7 +291,11 @@ public class Bert {
 			len = mBuffer.getShort() & 0x00FFFF;
 			val = new byte[(int) len];
 			mBuffer.get(val);
-			return new String(val);
+			try {
+				return new String(val, "UTF-8");
+			} catch (UnsupportedEncodingException ex) {
+				return new String(val);
+			}
 		case 108: // ListTag
 			return decodeList();
 		case 109: // BinTag

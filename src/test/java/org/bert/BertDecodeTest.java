@@ -200,11 +200,9 @@ public class BertDecodeTest {
 
 		assert(o instanceof Bert.Dict);
 
-		Bert.Atom name = new Bert.Atom();
-		name.name = "name";
+		Bert.Atom name = new Bert.Atom("name");
 
-		Bert.Atom age = new Bert.Atom();
-		age.name = "age";
+		Bert.Atom age = new Bert.Atom("age");
 
 		Bert.Dict d = (Bert.Dict) o;
 		assertEquals(d.size(), 2);
